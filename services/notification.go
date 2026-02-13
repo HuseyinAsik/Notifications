@@ -14,6 +14,10 @@ import (
 	"go.uber.org/zap"
 )
 
+const (
+	pageLimit = 20
+)
+
 type NotificationService struct {
 	NotificationRepo repository.NotificationRepository
 	Logger           *logging.LogWrapper
@@ -85,6 +89,18 @@ func (s *NotificationService) BulkCreate(ctx context.Context, batchForm serializ
 	}
 
 	return groupId, nil
+}
+
+func (s *NotificationService) List(ctx context.Context, listForm serializers.ListForm) ([]models.Notification, int, error) {
+	offset := (listForm.Page - 1) * pageLimit
+
+	notifications, total, err := s.NotificationRepo.ListNotifications(ctx, listForm.Status, listForm.Channel, listForm.StartDate, listForm.EndDate, pageLimit, offset)
+
+	if err != nil {
+		s.Logger.Error(ctx, "Notification List Err", zap.Error(err))
+	}
+
+	return notifications, total, err
 }
 
 func BuildTopic(notificationType, priority string) string {

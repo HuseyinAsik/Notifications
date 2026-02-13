@@ -3,6 +3,7 @@ package serializers
 import (
 	"context"
 	"errors"
+	"strconv"
 	"strings"
 	"time"
 
@@ -45,6 +46,38 @@ func (s *CreateNotificationBatchForm) Validate(ctx context.Context) error {
 	for i := range s.Data {
 		s.Data[i].Channel = strings.ToLower(s.Data[i].Channel)
 		s.Data[i].Priority = strings.ToLower(s.Data[i].Priority)
+	}
+
+	return nil
+}
+
+type ListForm struct {
+	PageStr      string `form:"page"`
+	Status       string `form:"status"`
+	Channel      string `form:"channel"`
+	StartDateStr string `form:"startdate"`
+	EndDateStr   string `form:"enddate"`
+	Page         int
+	StartDate    *time.Time
+	EndDate      *time.Time
+}
+
+func (s *ListForm) Validate(ctx context.Context) error {
+	page, err := strconv.Atoi(s.PageStr)
+	s.Page = 1
+	if err != nil && page > 0 {
+		s.Page = page
+	}
+
+	if s.StartDateStr != "" {
+		if t, err := time.Parse(time.RFC3339, s.StartDateStr); err == nil {
+			s.StartDate = &t
+		}
+	}
+	if s.EndDateStr != "" {
+		if t, err := time.Parse(time.RFC3339, s.EndDateStr); err == nil {
+			s.EndDate = &t
+		}
 	}
 
 	return nil

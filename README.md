@@ -192,6 +192,14 @@ Content-Type: application/json
   "priority": "high"
 }
 ```
+```
+GET /notifications
+Content-Type: application/json
+```
+
+``` curl
+curl --location 'http://localhost:8080/api/v1/notifications?status=sended&channel=email'
+```
 
 ### Response
 

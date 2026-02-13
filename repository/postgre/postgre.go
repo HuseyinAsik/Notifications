@@ -2,6 +2,8 @@ package postgre
 
 import (
 	"context"
+	"strconv"
+	"time"
 
 	"github.com/HuseyinAsik/Notifications/models"
 	"github.com/HuseyinAsik/Notifications/pkg/gpostgresql"
@@ -192,6 +194,73 @@ func (r *PostgresNotificationRepository) UpdateOutboxEvent(ctx context.Context, 
 `, status, retryCount, Id)
 
 	return err
+}
+
+func (r *PostgresNotificationRepository) UpdateNotificationStatus(ctx context.Context, Id, status string) error {
+	_, err := r.db.Write.Exec(ctx, `
+    UPDATE notifications
+    SET
+        status = $1
+    WHERE id = $2
+`, status, Id)
+
+	return err
+}
+
+func (r *PostgresNotificationRepository) ListNotifications(ctx context.Context, status, channel string, startDate, endDate *time.Time, limit, offset int) ([]models.Notification, int, error) {
+	notifications := []models.Notification{}
+	args := []interface{}{}
+	where := "WHERE 1=1"
+
+	if status != "" {
+		args = append(args, status)
+		where += " AND status = $" + strconv.Itoa(len(args))
+	}
+	if channel != "" {
+		args = append(args, channel)
+		where += " AND channel = $" + strconv.Itoa(len(args))
+	}
+	if startDate != nil {
+		args = append(args, *startDate)
+		where += " AND created_at >= $" + strconv.Itoa(len(args))
+	}
+	if endDate != nil {
+		args = append(args, *endDate)
+		where += " AND created_at <= $" + strconv.Itoa(len(args))
+	}
+
+	// Total count
+	totalQuery := "SELECT COUNT(*) FROM notifications " + where
+	var total int
+	err := r.db.Read.QueryRow(ctx, totalQuery, args...).Scan(&total)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	// Pagination
+	args = append(args, limit, offset)
+	query := "SELECT id, recipient, channel, priority, content, status, scheduled_at, created_at FROM notifications " +
+		where + " ORDER BY created_at DESC LIMIT $" + strconv.Itoa(len(args)-1) + " OFFSET $" + strconv.Itoa(len(args))
+
+	rows, err := r.db.Read.Query(ctx, query, args...)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var n models.Notification
+		err := rows.Scan(
+			&n.Id, &n.Recipient, &n.Channel, &n.Priority,
+			&n.Content, &n.Status, &n.ScheduledAt, &n.CreatedAt,
+		)
+		if err != nil {
+			return nil, 0, err
+		}
+		notifications = append(notifications, n)
+	}
+
+	return notifications, total, nil
 }
 
 func copyNotifications(ctx context.Context, tx pgx.Tx, list []models.Notification) error {

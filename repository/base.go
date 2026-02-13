@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"time"
 
 	"github.com/HuseyinAsik/Notifications/models"
 )
@@ -14,5 +15,7 @@ type NotificationRepository interface {
 	MarkOutboxPublished(ctx context.Context, ids []string) error
 	MarkOutboxPending(ctx context.Context, ids []string) error
 	UpdateOutboxEvent(ctx context.Context, Id, status string, retryCount int) error
+	UpdateNotificationStatus(ctx context.Context, Id, status string) error
+	ListNotifications(ctx context.Context, status, channel string, startDate, endDate *time.Time, limit, offset int) ([]models.Notification, int, error)
 	FindById(ctx context.Context, id string) (*models.Notification, error)
 }

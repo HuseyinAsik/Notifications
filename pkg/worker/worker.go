@@ -131,6 +131,13 @@ func (w *Worker) handle(messages []FetchedMessage, ctx context.Context) {
 					w.logger.Error(ctx, "handle markevent err", zap.Error(markErr))
 					return
 				}
+				if updateNotificationErr := w.UpdateNotification(ctx, n.Id, "processing"); updateNotificationErr != nil {
+					w.logger.Error(ctx, "handle updateNotification err",
+						zap.Error(updateNotificationErr),
+						zap.String("id", n.Id),
+						zap.String("status", "processing"))
+					return
+				}
 				if sendErr := w.provider.Send(n.Id, n.Recipient, n.Content); sendErr != nil {
 					w.logger.Error(ctx, "handle send err", zap.Error(sendErr))
 					if markErr := w.MarkEvent(ctx, n.Id, false); markErr != nil {
@@ -141,6 +148,13 @@ func (w *Worker) handle(messages []FetchedMessage, ctx context.Context) {
 				}
 			}
 
+			if updateNotificationErr := w.UpdateNotification(ctx, n.Id, "sended"); updateNotificationErr != nil {
+				w.logger.Error(ctx, "handle updateNotification err",
+					zap.Error(updateNotificationErr),
+					zap.String("id", n.Id),
+					zap.String("status", "sended"))
+				return
+			}
 			w.commit(ctx, m.Message, m.Reader)
 		}(msg)
 	}
@@ -195,4 +209,10 @@ func (w *Worker) MarkEvent(ctx context.Context, id string, result bool) error {
 	}
 
 	return nil
+}
+
+func (w *Worker) UpdateNotification(ctx context.Context, id, status string) error {
+	err := w.repo.UpdateNotificationStatus(ctx, id, status)
+
+	return err
 }

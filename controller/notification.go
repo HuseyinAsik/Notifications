@@ -26,6 +26,7 @@ func NewNotificationController(R *gin.Engine, notificationService *services.Noti
 	{
 		api.POST("", controller.Create)
 		api.POST("/batch", controller.Batch)
+		api.GET("", controller.List)
 	}
 }
 
@@ -73,5 +74,28 @@ func (c *notificationController) Batch(g *gin.Context) {
 		MessageId: Id,
 		Status:    "Accepted",
 		CreatedAt: time.Now().Format(time.RFC3339),
+	})
+}
+
+func (c *notificationController) List(g *gin.Context) {
+	serializer := serializers.Serializer{C: g, Logger: c.Logger}
+	ctx := g.Request.Context()
+	var form serializers.ListForm
+	_ = serializer.ShouldBindQuery(ctx, &form)
+
+	if err := form.Validate(ctx); err != nil {
+		serializer.ErrorResponse(http.StatusBadRequest, err)
+		return
+	}
+
+	notifications, total, err := c.NotificationService.List(ctx, form)
+
+	if err != nil {
+		serializer.ErrorResponse(http.StatusInternalServerError, err)
+	}
+
+	serializer.NotificationListResponse(http.StatusOK, serializers.NotificationListResponse{
+		Notifications: notifications,
+		Total:         total,
 	})
 }
