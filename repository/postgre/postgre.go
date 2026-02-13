@@ -200,20 +200,22 @@ func copyNotifications(ctx context.Context, tx pgx.Tx, list []models.Notificatio
 		ctx,
 		pgx.Identifier{"notifications"},
 		[]string{
-			"id", "type", "recipient",
+			"id", "group_id", "channel", "recipient",
 			"content", "priority",
-			"scheduled_at", "status",
+			"scheduled_at", "status", "created_at",
 		},
 		pgx.CopyFromSlice(len(list), func(i int) ([]interface{}, error) {
 			n := list[i]
 			return []interface{}{
 				n.Id,
+				n.GroupId,
 				n.Channel,
 				n.Recipient,
 				n.Content,
 				n.Priority,
 				n.ScheduledAt,
 				n.Status,
+				n.CreatedAt,
 			}, nil
 		}),
 	)
@@ -228,18 +230,22 @@ func copyOutbox(ctx context.Context, tx pgx.Tx, list []*models.OutboxEvent) erro
 		pgx.Identifier{"outbox"},
 		[]string{
 			"id", "aggregate_id",
-			"event_type", "topic",
-			"payload", "status",
+			"group_id", "event_type", "topic",
+			"payload", "status", "retry_count",
+			"created_at",
 		},
 		pgx.CopyFromSlice(len(list), func(i int) ([]interface{}, error) {
 			e := list[i]
 			return []interface{}{
 				e.Id,
 				e.AggregateId,
+				e.GroupId,
 				e.EventType,
 				e.Topic,
 				e.Payload,
 				"pending",
+				e.RetryCount,
+				e.CreatedAt,
 			}, nil
 		}),
 	)

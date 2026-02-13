@@ -56,6 +56,7 @@ func (s *NotificationService) BulkCreate(ctx context.Context, batchForm serializ
 	var events []*models.OutboxEvent
 
 	groupId := uuid.NewString()
+	now := time.Now()
 	for _, data := range batchForm.Data {
 		notification := models.Notification{
 			Id:          uuid.NewString(),
@@ -66,6 +67,7 @@ func (s *NotificationService) BulkCreate(ctx context.Context, batchForm serializ
 			Status:      "pending",
 			Priority:    data.Priority,
 			ScheduledAt: data.ScheduledAt,
+			CreatedAt:   now,
 		}
 		notifications = append(notifications, notification)
 
@@ -79,7 +81,7 @@ func (s *NotificationService) BulkCreate(ctx context.Context, batchForm serializ
 
 	if err != nil {
 		s.Logger.Error(ctx, "Notification service BulkInsertWithOutbox err", zap.Error(err))
-		return "", nil
+		return "", err
 	}
 
 	return groupId, nil
@@ -106,6 +108,7 @@ func CreateEvent(notification models.Notification) *models.OutboxEvent {
 		EventType:   "NotificationCreated",
 		Topic:       topic,
 		Payload:     payload,
+		CreatedAt:   now,
 	}
 
 	return event

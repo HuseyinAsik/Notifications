@@ -77,6 +77,7 @@ Examples:
 | Column       | Type                 |
 | ------------ | -------------------- |
 | id           | UUID / string        |
+| group_id     | string               |
 | recipient    | text                 |
 | channel      | text                 |
 | content      | text                 |
@@ -91,10 +92,11 @@ Examples:
 | ------------ | ----------------------------------------- |
 | id           | UUID                                      |
 | aggregate_id | string                                    |
+| group_id     | string                                    |
 | event_type   | text                                      |
 | topic        | text                                      |
 | payload      | jsonb                                     |
-| status       | pending / published / sended / failed |
+| status       | pending / published / sended / failed     |
 | retry_count  | int                                       |
 | created_at   | timestamp                                 |
 | published_at | timestamp                                 |
@@ -196,7 +198,8 @@ Content-Type: application/json
 ```json
 {
   "id": "b1a2c3d4",
-  "status": "pending"
+  "status": "pending",
+  "createdAt": "2026-02-13T14:30:00Z"
 }
 ```
 
