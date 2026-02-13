@@ -1,0 +1,172 @@
+version: "3.9"
+
+services:
+
+  postgres:
+    image: postgres:15
+    container_name: notification-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: notification
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./migrations:/docker-entrypoint-initdb.d
+    networks:
+      - notification-net
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    container_name: notification-zookeeper
+    restart: always
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+    networks:
+      - notification-net
+
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: notification-kafka
+    restart: always
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+    networks:
+      - notification-net
+
+  kafka-init:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: kafka-init
+    depends_on:
+      - kafka
+    networks:
+      - notification-net
+    entrypoint: ["/bin/sh", "-c"]
+    command: |
+      echo "Waiting for Kafka..."
+      cub kafka-ready -b kafka:9092 1 30
+      kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic sms_high --replication-factor 1 --partitions 1
+      kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic sms_medium --replication-factor 1 --partitions 1
+      kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic sms_low --replication-factor 1 --partitions 1
+      kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic email_high --replication-factor 1 --partitions 1
+      kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic email_medium --replication-factor 1 --partitions 1
+      kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic email_low --replication-factor 1 --partitions 1
+      kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic push_high --replication-factor 1 --partitions 1
+      kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic push_medium --replication-factor 1 --partitions 1
+      kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic push_low --replication-factor 1 --partitions 1
+      echo "Topics created"
+
+  notification-api:
+    build: .
+    container_name: notification-api
+    restart: always
+    depends_on:
+      - postgres
+      - kafka
+    command: ["./notification-api"]
+    environment:
+      APP_NAME: notification-api
+      LOG_LEVEL: warn
+      LOG_ENCODING: console
+      APP_CONTEXT_TIMEOUT: 3
+      RUN_MODE: release
+      HTTP_PORT: 8080
+      READ_TIMEOUT: 30
+      WRITE_TIMEOUT: 30
+      POSTGRESQL_READ_DSN: postgres://postgres:postgres@postgres:5432/notification?sslmode=disable
+      POSTGRESQL_WRITE_DSN: postgres://postgres:postgres@postgres:5432/notification?sslmode=disable
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      DB_NAME: notification
+      KAFKA_BROKERS: kafka:9092
+
+    ports:
+      - "8080:8080"
+    networks:
+      - notification-net
+
+  outbox-publisher:
+    build: .
+    container_name: outbox-publisher
+    restart: always
+    depends_on:
+      - postgres
+      - kafka
+    command: ["./outbox-publisher"]
+    environment:
+      APP_NAME: outbox-publisher
+      LOG_LEVEL: warn
+      LOG_ENCODING: console
+      POSTGRESQL_READ_DSN: postgres://postgres:postgres@postgres:5432/notification?sslmode=disable
+      POSTGRESQL_WRITE_DSN: postgres://postgres:postgres@postgres:5432/notification?sslmode=disable
+      KAFKA_BROKERS: kafka:9092
+    networks:
+      - notification-net
+
+  sms-worker:
+    build: .
+    container_name: sms-worker
+    restart: always
+    depends_on:
+      - kafka
+    command: ["./sms-worker"]
+    environment:
+      APP_NAME: sms-worker
+      LOG_LEVEL: warn
+      LOG_ENCODING: console
+      POSTGRESQL_READ_DSN: postgres://postgres:postgres@postgres:5432/notification?sslmode=disable
+      POSTGRESQL_WRITE_DSN: postgres://postgres:postgres@postgres:5432/notification?sslmode=disable
+      KAFKA_BROKERS: kafka:9092
+    networks:
+      - notification-net
+
+  email-worker:
+    build: .
+    container_name: email-worker
+    restart: always
+    depends_on:
+      - kafka
+    command: ["./email-worker"]
+    environment:
+      APP_NAME: email-worker
+      LOG_LEVEL: warn
+      LOG_ENCODING: console
+      POSTGRESQL_READ_DSN: postgres://postgres:postgres@postgres:5432/notification?sslmode=disable
+      POSTGRESQL_WRITE_DSN: postgres://postgres:postgres@postgres:5432/notification?sslmode=disable
+      KAFKA_BROKERS: kafka:9092
+    networks:
+      - notification-net
+
+  push-worker:
+    build: .
+    container_name: push-worker
+    restart: always
+    depends_on:
+      - kafka
+    command: ["./push-worker"]
+    environment:
+      APP_NAME: push-worker
+      LOG_LEVEL: warn
+      LOG_ENCODING: console
+      POSTGRESQL_READ_DSN: postgres://postgres:postgres@postgres:5432/notification?sslmode=disable
+      POSTGRESQL_WRITE_DSN: postgres://postgres:postgres@postgres:5432/notification?sslmode=disable
+      KAFKA_BROKERS: kafka:9092
+    networks:
+      - notification-net
+
+volumes:
+  postgres_data:
+
+networks:
+  notification-net:
+    driver: bridge
